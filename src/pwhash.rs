@@ -100,7 +100,7 @@ pub fn hash_password(
 	)?;
 
 	let dk = PasswordHash::from_slice(&buffer)?;
-	buffer.zeroize();
+	buffer.iter_mut().zeroize();
 
 	Ok(dk)
 }
@@ -122,7 +122,7 @@ pub fn hash_password_verify(
 		&mut dk,
 	)?;
 
-	dk.zeroize();
+	dk.iter_mut().zeroize();
 
 	Ok(is_good)
 }

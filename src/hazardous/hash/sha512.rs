@@ -63,6 +63,7 @@ use crate::{
 	endianness::{load_u64_into_be, store_u64_into_be},
 	errors::UnknownCryptoError,
 };
+use zeroize::Zeroize;
 
 /// The blocksize for the hash function SHA512.
 pub const SHA512_BLOCKSIZE: usize = 128;
@@ -126,10 +127,11 @@ pub struct Sha512 {
 
 impl Drop for Sha512 {
 	fn drop(&mut self) {
-		use zeroize::Zeroize;
 		self.working_state.zeroize();
-		self.buffer.zeroize();
+		self.buffer.iter_mut().zeroize();
+		self.leftover.zeroize();
 		self.message_len.zeroize();
+		self.is_finalized.zeroize();
 	}
 }
 
@@ -203,16 +205,19 @@ impl Sha512 {
 		x: u64,
 		ki: u64,
 	) {
-		let temp1 = h
+		let mut temp1 = h
 			.wrapping_add(Self::big_sigma_1(e))
 			.wrapping_add(Self::ch(e, f, g))
 			.wrapping_add(ki)
 			.wrapping_add(x);
 
-		let temp2 = Self::big_sigma_0(a).wrapping_add(Self::maj(a, b, c));
+		let mut temp2 = Self::big_sigma_0(a).wrapping_add(Self::maj(a, b, c));
 
 		*d = d.wrapping_add(temp1);
 		*h = temp1.wrapping_add(temp2);
+
+		temp1.zeroize();
+		temp2.zeroize();
 	}
 
 	#[inline]
@@ -265,6 +270,17 @@ impl Sha512 {
 		self.working_state[5] = self.working_state[5].wrapping_add(f);
 		self.working_state[6] = self.working_state[6].wrapping_add(g);
 		self.working_state[7] = self.working_state[7].wrapping_add(h);
+
+		w.iter_mut().zeroize();
+
+		a.zeroize();
+		b.zeroize();
+		c.zeroize();
+		d.zeroize();
+		e.zeroize();
+		f.zeroize();
+		g.zeroize();
+		h.zeroize();
 	}
 
 	#[inline]

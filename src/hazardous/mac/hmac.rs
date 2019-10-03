@@ -133,8 +133,8 @@ impl Hmac {
 		self.ipad_hasher.update(ipad.as_ref()).unwrap();
 		self.opad_hasher.update(opad.as_ref()).unwrap();
 		self.working_hasher = self.ipad_hasher.clone();
-		ipad.zeroize();
-		opad.zeroize();
+		ipad.iter_mut().zeroize();
+		opad.iter_mut().zeroize();
 	}
 
 	/// Initialize `Hmac` struct with a given key.
@@ -197,10 +197,7 @@ pub fn verify(
 	secret_key: &SecretKey,
 	data: &[u8],
 ) -> Result<bool, UnknownCryptoError> {
-	let mut hmac_state = Hmac::new(secret_key);
-	hmac_state.update(data)?;
-
-	if expected == &hmac_state.finalize()? {
+	if expected == &hmac(secret_key, data)? {
 		Ok(true)
 	} else {
 		Err(UnknownCryptoError)

@@ -88,6 +88,8 @@ use crate::{
 	hazardous::stream::chacha20::{self, Nonce as IETFNonce, IETF_CHACHA_NONCESIZE},
 };
 
+use zeroize::Zeroize;
+
 /// The nonce size for XChaCha20.
 pub const XCHACHA_NONCESIZE: usize = 24;
 
@@ -109,8 +111,10 @@ impl_from_trait!(Nonce, XCHACHA_NONCESIZE);
 /// Generate a subkey using HChaCha20 for XChaCha20 and corresponding nonce.
 pub(crate) fn subkey_and_nonce(secret_key: &SecretKey, nonce: &Nonce) -> (SecretKey, IETFNonce) {
 	// .unwrap() should not be able to panic because we pass a 16-byte nonce.
-	let subkey: SecretKey =
-		SecretKey::from(chacha20::hchacha20(secret_key, &nonce.as_ref()[0..16]).unwrap());
+	let mut hres = chacha20::hchacha20(secret_key, &nonce.as_ref()[0..16]).unwrap();
+	let subkey: SecretKey = SecretKey::from(hres);
+	hres.iter_mut().zeroize();
+
 	let mut prefixed_nonce = [0u8; IETF_CHACHA_NONCESIZE];
 	prefixed_nonce[4..IETF_CHACHA_NONCESIZE].copy_from_slice(&nonce.as_ref()[16..24]);
 

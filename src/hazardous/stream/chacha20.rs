@@ -145,6 +145,15 @@ impl_from_trait!(Nonce, IETF_CHACHA_NONCESIZE);
 #[derive(Clone, Copy)]
 struct U32x4(u32, u32, u32, u32);
 
+impl Zeroize for U32x4 {
+	fn zeroize(&mut self) {
+		self.0.zeroize();
+		self.1.zeroize();
+		self.2.zeroize();
+		self.3.zeroize();
+	}
+}
+
 impl core::ops::BitXor for U32x4 {
 	type Output = Self;
 
@@ -242,12 +251,12 @@ struct InternalState {
 
 impl Drop for InternalState {
 	fn drop(&mut self) {
-		for row in self.state.iter_mut() {
-			row.0.zeroize();
-			row.1.zeroize();
-			row.2.zeroize();
-			row.3.zeroize();
-		}
+		self.state[0].zeroize();
+		self.state[1].zeroize();
+		self.state[2].zeroize();
+		self.state[3].zeroize();
+		self.internal_counter.zeroize();
+		self.is_ietf.zeroize();
 	}
 }
 
@@ -417,10 +426,11 @@ fn encrypt_in_place(
 		let block_counter = initial_counter.checked_add(counter as u32);
 
 		if block_counter.is_some() {
-			let keystream_state = state.process_block(block_counter)?;
+			let mut keystream_state = state.process_block(block_counter)?;
 
 			if bytes_block.len() == CHACHA_BLOCKSIZE {
 				Serialize::IetfChaCha.xor_in_place(&keystream_state, bytes_block);
+				keystream_state.iter_mut().zeroize();
 			} else {
 				let block_len = bytes_block.len();
 				let mut keystream_block = [0u8; CHACHA_BLOCKSIZE];
@@ -428,6 +438,7 @@ fn encrypt_in_place(
 				keystream_block[..block_len].copy_from_slice(bytes_block);
 				Serialize::IetfChaCha.xor_in_place(&keystream_state, &mut keystream_block);
 				bytes_block.copy_from_slice(keystream_block[..block_len].as_ref());
+				keystream_state.iter_mut().zeroize();
 				keystream_block.zeroize();
 			}
 		} else {
@@ -482,13 +493,12 @@ pub fn keystream_block(
 	nonce: &Nonce,
 	counter: u32,
 ) -> Result<[u8; CHACHA_BLOCKSIZE], UnknownCryptoError> {
-	let mut chacha_state =
-		InternalState::new(secret_key.unprotected_as_bytes(), &nonce.as_ref(), true)?;
+	let mut state = InternalState::new(secret_key.unprotected_as_bytes(), &nonce.as_ref(), true)?;
+	let mut keystream_state = state.process_block(Some(counter))?;
 	let mut keystream_block = [0u8; CHACHA_BLOCKSIZE];
-	Serialize::IetfChaCha.xor_in_place(
-		&chacha_state.process_block(Some(counter))?,
-		&mut keystream_block,
-	);
+
+	Serialize::IetfChaCha.xor_in_place(&keystream_state, &mut keystream_block);
+	keystream_state.iter_mut().zeroize();
 
 	Ok(keystream_block)
 }
@@ -499,9 +509,12 @@ pub(super) fn hchacha20(
 	secret_key: &SecretKey,
 	nonce: &[u8],
 ) -> Result<[u8; HCHACHA_OUTSIZE], UnknownCryptoError> {
-	let mut chacha_state = InternalState::new(secret_key.unprotected_as_bytes(), nonce, false)?;
+	let mut state = InternalState::new(secret_key.unprotected_as_bytes(), nonce, false)?;
+	let mut keystream_state = state.process_block(None)?;
 	let mut keystream_block = [0u8; HCHACHA_OUTSIZE];
-	Serialize::HChaCha.xor_in_place(&chacha_state.process_block(None)?, &mut keystream_block);
+
+	Serialize::HChaCha.xor_in_place(&keystream_state, &mut keystream_block);
+	keystream_state.iter_mut().zeroize();
 
 	Ok(keystream_block)
 }

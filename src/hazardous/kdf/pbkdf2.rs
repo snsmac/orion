@@ -80,6 +80,8 @@ use crate::{
 	util,
 };
 
+use zeroize::Zeroize;
+
 construct_hmac_key! {
 	/// A type to represent the `Password` that PBKDF2 hashes.
 	///
@@ -125,6 +127,8 @@ fn function_f(
 				.for_each(|(a, b)| *a ^= b);
 		}
 	}
+
+	u_step.iter_mut().zeroize();
 
 	Ok(())
 }

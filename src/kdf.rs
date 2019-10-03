@@ -105,7 +105,7 @@ pub fn derive_key(
 	)?;
 
 	let dk = SecretKey::from_slice(&buffer)?;
-	buffer.zeroize();
+	buffer.iter_mut().zeroize();
 
 	Ok(dk)
 }
@@ -128,7 +128,7 @@ pub fn derive_key_verify(
 		&mut buffer,
 	)?;
 
-	buffer.zeroize();
+	buffer.iter_mut().zeroize();
 
 	Ok(is_good)
 }

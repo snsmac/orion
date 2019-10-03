@@ -83,6 +83,7 @@ use crate::{
 	endianness::{load_u64_into_le, store_u64_into_le},
 	errors::UnknownCryptoError,
 };
+use zeroize::Zeroize;
 
 /// The blocksize for the hash function BLAKE2b.
 const BLAKE2B_BLOCKSIZE: usize = 128;
@@ -197,10 +198,15 @@ pub struct Blake2b {
 
 impl Drop for Blake2b {
 	fn drop(&mut self) {
-		use zeroize::Zeroize;
 		self.init_state.zeroize();
 		self.internal_state.zeroize();
-		self.buffer.zeroize();
+		self.buffer.iter_mut().zeroize();
+		self.leftover.zeroize();
+		self.t.zeroize();
+		self.f.zeroize();
+		self.is_finalized.zeroize();
+		self.is_keyed.zeroize();
+		self.size.zeroize();
 	}
 }
 
@@ -310,6 +316,9 @@ impl Blake2b {
 		self.internal_state[5] ^= w_vec[5] ^ w_vec[13];
 		self.internal_state[6] ^= w_vec[6] ^ w_vec[14];
 		self.internal_state[7] ^= w_vec[7] ^ w_vec[15];
+
+		m_vec.iter_mut().zeroize();
+		w_vec.iter_mut().zeroize();
 	}
 
 	#[must_use = "SECURITY WARNING: Ignoring a Result can have real security implications."]

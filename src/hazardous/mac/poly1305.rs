@@ -124,7 +124,9 @@ impl Drop for Poly1305 {
 		self.a.zeroize();
 		self.r.zeroize();
 		self.s.zeroize();
+		self.leftover.zeroize();
 		self.buffer.zeroize();
+		self.is_finalized.zeroize();
 	}
 }
 
